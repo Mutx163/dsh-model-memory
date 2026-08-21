@@ -1,6 +1,6 @@
 {
   "name": "dsh-model-memory",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "description": "DSH 自定义模型思考等级管理与偏好记忆插件：原生设计语言、全档位思考配置与无感隔离式跨会话偏好记忆。",
   "author": "Mutx163",
   "license": "MIT",

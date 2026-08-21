@@ -391,46 +391,48 @@ export function apply(ctx: ClientContext): void {
   const wireSessionSelectModel = () => {
     const api = (connection as unknown as { api?: { sessions?: Record<string, unknown> } } | undefined)?.api;
     const originalSelectModel = api?.sessions?.selectModel;
+    console.log('[model-memory] wire: api=' + Boolean(api) + ' sessions=' + Boolean(api?.sessions) + ' selectModel=' + typeof originalSelectModel);
     if (typeof originalSelectModel !== 'function') return;
     api!.sessions!.selectModel = async (payload: any, signal?: AbortSignal) => {
-      if (cachedProviders.length === 0) {
-        void syncConfig();
-      }
-      const res = await (originalSelectModel as (p: any, s?: AbortSignal) => Promise<any>)(payload, signal);
+      // 请求预注入：切换模型且未携带档位时，把记忆档位直接加进本次请求，
+      // 单跳完成（会话状态/持久化/响应全部天然正确），彻底避开补选与
+      // 官方代际守卫的竞态。
       try {
-        // callUnary 包络形状是 { rpcId, result: { ok, value } | { error } }
-        const result = res && typeof res === 'object' ? (res as any).result : undefined;
-        const selected = result && result.ok && result.value ? result.value.selected : undefined;
         if (
-          selected &&
-          selected.reasoningEffort === undefined &&
           payload && payload.provider && payload.model &&
           typeof payload.reasoningEffort !== 'string'
         ) {
-          let remembered = rememberedFor(selected.provider, selected.model);
-          if (!remembered && cachedProviders.length > 0 && !cacheAnnotated()) {
-            // 旧版宿主的 list-providers 不带记忆注记：退回逐次查询，保证兼容
+          if (cachedProviders.length === 0) {
+            void syncConfig();
+          }
+          let remembered = rememberedFor(payload.provider, payload.model);
+          if (!remembered && !cacheAnnotated()) {
+            // 缓存无注记（旧宿主或冷启动）：退回逐次查询
             try {
-              const pref = await callRpc('get-preference', { provider: selected.provider, model: selected.model });
+              const pref = await callRpc('get-preference', { provider: payload.provider, model: payload.model });
               remembered = pref?.reasoningEffort;
             } catch { /* 查询失败按无记忆处理 */ }
           }
-          if (remembered) {
-            const followUp = await (originalSelectModel as (p: any, s?: AbortSignal) => Promise<any>)(
+          const declared = cachedProviders.find((item) => item.id === payload.provider)?.models.find(
+            (m) => m.id === payload.model || m.name === payload.model,
+          );
+          const supported = remembered !== undefined && (!declared || declared.supportedEffortList.length === 0 || declared.supportedEffortList.includes(remembered));
+          console.log('[model-memory] inject?', payload.provider + '/' + payload.model, 'remembered=' + String(remembered), 'supported=' + String(supported));
+          if (remembered !== undefined && supported) {
+            const res = await (originalSelectModel as (p: any, s?: AbortSignal) => Promise<any>)(
               { ...payload, reasoningEffort: remembered },
               signal,
             );
-            const followResult = followUp && typeof followUp === 'object' ? (followUp as any).result : undefined;
-            if (followResult && followResult.ok && followResult.value && followResult.value.selected) {
-              return followUp;
+            const r = res && typeof res === 'object' ? (res as any).result : undefined;
+            console.log('[model-memory] injected call ok=', Boolean(r && r.ok));
+            if (r && r.ok) {
+              return res;
             }
-            // 补选失败（例如该模型已不支持记忆的档位）：保留原始结果
+            // 注入被拒（档位不再受支持等）：回退为原始请求再试一次
           }
         }
-      } catch {
-        // 记忆查询或补选失败：静默回退到原始结果
-      }
-      return res;
+      } catch { /* 任何异常都退回原始调用 */ }
+      return await (originalSelectModel as (p: any, s?: AbortSignal) => Promise<any>)(payload, signal);
     };
   };
 
