@@ -99,29 +99,15 @@ export function apply(ctx: Context, config: unknown): void {
             logger.warn('dsh-model-memory: 偏好记录落盘失败: ' + String(err));
           });
         } else if (service.getConfig().syncDefaultModel !== false) {
-          // 未携带思考等级：用「上一个已保存默认」区分两种意图——
-          //   a) provider/model 变了 => 模型切换，回填该模型的记忆档位；
-          //   b) provider/model 没变 => 用户在同一模型上显式清除档位，
-          //      此时删除该模型的记忆，绝不复活旧值。
-          let previous;
-          try {
-            previous = host.agentDefaultModel?.currentSelection();
-          } catch {
-            previous = undefined;
-          }
-          const sameRoute = previous?.provider === next.provider && previous?.model === next.model;
+          // 未携带思考等级 => 模型切换，回填该模型的记忆档位。
+          // 注意：协议层无法区分「选模型」与「显式选默认档位」（二者线上形状相同），
+          // 为避免重复点击同一模型时误删记忆，这里永不自动清除；清除请走插件卡片。
           const remembered = service.getPreference(next.provider, next.model);
-          if (!sameRoute) {
-            if (remembered?.reasoningEffort) {
-              targetSelection = {
-                ...next,
-                reasoningEffort: remembered.reasoningEffort,
-              };
-            }
-          } else if (remembered?.reasoningEffort) {
-            void service.clearEffort(next.provider, next.model).catch((err) => {
-              logger.warn('dsh-model-memory: 清除档位记忆失败: ' + String(err));
-            });
+          if (remembered?.reasoningEffort) {
+            targetSelection = {
+              ...next,
+              reasoningEffort: remembered.reasoningEffort,
+            };
           }
         }
       }

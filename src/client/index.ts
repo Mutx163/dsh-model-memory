@@ -29,6 +29,7 @@ interface CustomModelReasoningConfig {
   thinkingFormat: string;
   reasoningEfforts: Record<string, string>;
   supportedEffortList: string[];
+  rememberedEffort?: string;
 }
 
 interface CustomProviderInfo {
@@ -372,12 +373,25 @@ export function apply(ctx: ClientContext): void {
   // api.sessions.selectModel（ui-model-selection 动态查找该方法，包装对
   // 所有调用方生效）：若本次选择未带档位且该模型有记忆档位，则自动补一次
   // 带档位的选择。同模型不带档位视为显式清除 -> 通知宿主删除记忆。
-  const lastSelectionBySession = new Map<string, { provider: string; model: string }>();
+  const rememberedFor = (providerId: string, modelId: string): string | undefined => {
+    const p = cachedProviders.find((item) => item.id === providerId);
+    return p?.models.find((m) => m.id === modelId || m.name === modelId)?.rememberedEffort;
+  };
+
+  // 会话内即时恢复：官方切换模型时先定会话状态再持久化，宿主端注入的档位
+  // 只影响「下次会话的默认」，当前会话界面不会显示。这里包装共享的
+  // api.sessions.selectModel（ui-model-selection 动态查找该方法，包装对
+  // 所有调用方生效）：若本次选择未带档位且记忆中有档位，则立即补一次带档位的
+  // 选择。记忆从 list-providers 缓存读取（零额外往返）；协议层无法区分
+  // 「选模型」与「显式选默认档位」，故这里不做自动清除，清除走插件卡片。
   const wireSessionSelectModel = () => {
     const api = (connection as unknown as { api?: { sessions?: Record<string, unknown> } } | undefined)?.api;
     const originalSelectModel = api?.sessions?.selectModel;
     if (typeof originalSelectModel !== 'function') return;
     api!.sessions!.selectModel = async (payload: any, signal?: AbortSignal) => {
+      if (cachedProviders.length === 0) {
+        void syncConfig();
+      }
       const res = await (originalSelectModel as (p: any, s?: AbortSignal) => Promise<any>)(payload, signal);
       try {
         // callUnary 包络形状是 { rpcId, result: { ok, value } | { error } }
@@ -386,39 +400,21 @@ export function apply(ctx: ClientContext): void {
         if (
           selected &&
           selected.reasoningEffort === undefined &&
-          payload && payload.provider && payload.model && payload.sessionId !== undefined &&
+          payload && payload.provider && payload.model &&
           typeof payload.reasoningEffort !== 'string'
         ) {
-          const previous = lastSelectionBySession.get(String(payload.sessionId));
-          const sameRoute = Boolean(previous && previous.provider === selected.provider && previous.model === selected.model);
-          if (!sameRoute) {
-            // 模型切换：查询记忆并补选
-            const pref = await callRpc('get-preference', { provider: selected.provider, model: selected.model });
-            if (pref && pref.reasoningEffort) {
-              const followUp = await (originalSelectModel as (p: any, s?: AbortSignal) => Promise<any>)(
-                { ...payload, reasoningEffort: pref.reasoningEffort },
-                signal,
-              );
-              const followResult = followUp && typeof followUp === 'object' ? (followUp as any).result : undefined;
-              if (followResult && followResult.ok && followResult.value && followResult.value.selected) {
-                lastSelectionBySession.set(String(payload.sessionId), {
-                  provider: selected.provider,
-                  model: selected.model,
-                });
-                return followUp;
-              }
-              // 补选失败（例如该模型已不支持记忆的档位）：保留原始结果
+          const remembered = rememberedFor(selected.provider, selected.model);
+          if (remembered) {
+            const followUp = await (originalSelectModel as (p: any, s?: AbortSignal) => Promise<any>)(
+              { ...payload, reasoningEffort: remembered },
+              signal,
+            );
+            const followResult = followUp && typeof followUp === 'object' ? (followUp as any).result : undefined;
+            if (followResult && followResult.ok && followResult.value && followResult.value.selected) {
+              return followUp;
             }
-          } else {
-            // 同一模型再次不带档位：显式清除档位 -> 删除记忆
-            void callRpc('forget-effort', { provider: selected.provider, model: selected.model }).catch(() => undefined);
+            // 补选失败（例如该模型已不支持记忆的档位）：保留原始结果
           }
-        }
-        if (selected && payload && payload.sessionId !== undefined) {
-          lastSelectionBySession.set(String(payload.sessionId), {
-            provider: selected.provider,
-            model: selected.model,
-          });
         }
       } catch {
         // 记忆查询或补选失败：静默回退到原始结果
@@ -428,6 +424,7 @@ export function apply(ctx: ClientContext): void {
   };
 
   wireSessionSelectModel();
+  void syncConfig();
 
   // 深度内嵌到官方「模型设置」条目中。
   // v0.1.4：不依赖设置页容器类名做外层限定（官方前端改版会漂移：

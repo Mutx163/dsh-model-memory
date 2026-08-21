@@ -67,6 +67,15 @@ export function installMemoryRpc(
 
         if (endpoint === 'list-providers') {
           const providers = await settingsManager.listCustomProviders();
+          // 附带每个模型当前的记忆档位，客户端可零查询地做会话内即时恢复
+          for (const p of providers) {
+            for (const m of p.models) {
+              const pref = service.getPreference(p.id, m.id);
+              if (pref?.reasoningEffort) {
+                m.rememberedEffort = pref.reasoningEffort;
+              }
+            }
+          }
           return { ok: true, value: providers };
         }
 

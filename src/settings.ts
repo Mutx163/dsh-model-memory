@@ -25,6 +25,8 @@ export interface CustomModelReasoningConfig {
   thinkingFormat: string;
   reasoningEfforts: Record<string, string>;
   supportedEffortList: string[];
+  /** 该模型当前的记忆档位（由 RPC 层从记忆库注入；未记忆时缺省） */
+  rememberedEffort?: string;
 }
 
 export interface CustomProviderInfo {
