@@ -380,7 +380,9 @@ export function apply(ctx: ClientContext): void {
     api!.sessions!.selectModel = async (payload: any, signal?: AbortSignal) => {
       const res = await (originalSelectModel as (p: any, s?: AbortSignal) => Promise<any>)(payload, signal);
       try {
-        const selected = res && res.ok ? res.value && res.value.selected : undefined;
+        // callUnary 包络形状是 { rpcId, result: { ok, value } | { error } }
+        const result = res && typeof res === 'object' ? (res as any).result : undefined;
+        const selected = result && result.ok && result.value ? result.value.selected : undefined;
         if (
           selected &&
           selected.reasoningEffort === undefined &&
@@ -397,13 +399,15 @@ export function apply(ctx: ClientContext): void {
                 { ...payload, reasoningEffort: pref.reasoningEffort },
                 signal,
               );
-              if (followUp && followUp.ok) {
+              const followResult = followUp && typeof followUp === 'object' ? (followUp as any).result : undefined;
+              if (followResult && followResult.ok && followResult.value && followResult.value.selected) {
                 lastSelectionBySession.set(String(payload.sessionId), {
                   provider: selected.provider,
                   model: selected.model,
                 });
                 return followUp;
               }
+              // 补选失败（例如该模型已不支持记忆的档位）：保留原始结果
             }
           } else {
             // 同一模型再次不带档位：显式清除档位 -> 删除记忆
