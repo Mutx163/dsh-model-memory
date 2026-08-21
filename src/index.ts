@@ -51,20 +51,27 @@ export function apply(ctx: Context, config: unknown): void {
     };
   }, 'dsh-model-memory: lifecycle');
 
-  // 2. 纯被动记忆：监听 agentDefaultModel.saveSelection，绝不破坏原有参数与调用链
+  // 2. 纯被动记忆：异步监听 saveSelection，防止任何递归死循环
   if (host.agentDefaultModel) {
     const originalSaveSelection = host.agentDefaultModel.saveSelection.bind(host.agentDefaultModel);
 
+    let isRemembering = false;
     host.agentDefaultModel.saveSelection = async (next) => {
-      try {
-        if (service.isEnabled() && next?.provider && next?.model) {
-          void service.remember({
-            provider: next.provider,
-            model: next.model,
-            reasoningEffort: next.reasoningEffort,
-          }).catch(() => {});
+      if (!isRemembering) {
+        isRemembering = true;
+        try {
+          if (service.isEnabled() && next?.provider && next?.model) {
+            void service.remember({
+              provider: next.provider,
+              model: next.model,
+              reasoningEffort: next.reasoningEffort,
+            }).catch(() => {});
+          }
+        } catch {
+        } finally {
+          isRemembering = false;
         }
-      } catch {}
+      }
 
       return originalSaveSelection(next);
     };

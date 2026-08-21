@@ -76,24 +76,11 @@ export class ModelMemoryService {
   }
 
   /**
-   * 记录并持久化模型与思考强度选择，并同步到 DSH 默认配置
+   * 记录并持久化模型与思考强度选择
    */
   async remember(selection: ModelSelectionPayload): Promise<void> {
     if (!this.config.enabled) return;
     await this.store.remember(selection);
-
-    // 如果配置了自动同步，将偏好同步到全局 agentDefaultModel
-    if (this.config.syncDefaultModel && this.ctx.agentDefaultModel) {
-      try {
-        await this.ctx.agentDefaultModel.saveSelection({
-          provider: selection.provider,
-          model: selection.model,
-          ...(selection.reasoningEffort ? { reasoningEffort: selection.reasoningEffort } : {}),
-        });
-      } catch (error) {
-        this.ctx.logger('dsh-model-memory').warn('Sync to agentDefaultModel failed: ' + String(error));
-      }
-    }
   }
 
   /**

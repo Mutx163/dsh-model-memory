@@ -18,13 +18,10 @@ describe('ModelMemoryService', () => {
     await rm(tempDir, { recursive: true, force: true });
   });
 
-  it('syncs remembered preference to agentDefaultModel automatically', async () => {
-    let savedSelection: { provider: string; model: string; reasoningEffort?: string } | undefined;
+  it('remembers preference passively without recursive loop', async () => {
     const fakeAgentDefaultModel = {
       currentSelection: () => ({ provider: 'deepseek-official', model: 'deepseek-v4-pro' }),
-      saveSelection: async (next: { provider: string; model: string; reasoningEffort?: string }) => {
-        savedSelection = next;
-      },
+      saveSelection: async () => {},
     };
 
     const ctx = {
@@ -42,14 +39,9 @@ describe('ModelMemoryService', () => {
       reasoningEffort: 'max',
     });
 
-    expect(savedSelection).toEqual({
-      provider: 'deepseek-official',
-      model: 'deepseek-v4-pro',
-      reasoningEffort: 'max',
-    });
-
     const pref = service.getPreference('deepseek-official');
     expect(pref?.reasoningEffort).toBe('max');
+    expect(pref?.model).toBe('deepseek-v4-pro');
   });
 
   it('resolves model preferences with LLM metadata verification', async () => {
@@ -59,7 +51,7 @@ describe('ModelMemoryService', () => {
         id: model,
         name: model,
         reasoning: {
-          efforts: [{ id: 'off' }, { id: 'high' }, { id: 'max' }],
+          efforts: [{ id: 'low' }, { id: 'high' }],
           defaultEffort: 'high',
         },
       }),
@@ -74,19 +66,13 @@ describe('ModelMemoryService', () => {
     const service = new ModelMemoryService(ctx, {}, store);
     await service.init();
 
-    // 记录 max 偏好
     await service.remember({
-      provider: 'deepseek-official',
-      model: 'deepseek-v4-pro',
-      reasoningEffort: 'max',
+      provider: 'custom-api',
+      model: 'custom-gpt',
+      reasoningEffort: 'max', // max 不在 low/high 中，预期降级为 high
     });
 
-    // 求解偏好时，验证模型元数据支持 max 并保持 max
-    const resolved = await service.resolvePreference('deepseek-official', 'deepseek-v4-pro');
-    expect(resolved).toEqual({
-      provider: 'deepseek-official',
-      model: 'deepseek-v4-pro',
-      reasoningEffort: 'max',
-    });
+    const resolved = await service.resolvePreference('custom-api', 'custom-gpt');
+    expect(resolved?.reasoningEffort).toBe('high');
   });
 });
