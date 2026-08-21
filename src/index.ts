@@ -51,35 +51,22 @@ export function apply(ctx: Context, config: unknown): void {
     };
   }, 'dsh-model-memory: lifecycle');
 
-  // 2. 包装 agentDefaultModel.saveSelection 确保每次全局或会话模型变更都能无感记忆
+  // 2. 纯被动记忆：监听 agentDefaultModel.saveSelection，绝不破坏原有参数与调用链
   if (host.agentDefaultModel) {
     const originalSaveSelection = host.agentDefaultModel.saveSelection.bind(host.agentDefaultModel);
 
     host.agentDefaultModel.saveSelection = async (next) => {
-      // 记录到多渠道记忆表
       try {
-        await service.remember({
-          provider: next.provider,
-          model: next.model,
-          reasoningEffort: next.reasoningEffort,
-        });
-      } catch (err) {
-        logger.warn('记忆模型偏好失败: ' + String(err));
-      }
-
-      // 如果传入的 next 缺少 reasoningEffort，尝试从记忆库中补全
-      let effectiveNext = next;
-      if (!next.reasoningEffort) {
-        const remembered = service.getPreference(next.provider, next.model);
-        if (remembered?.reasoningEffort) {
-          effectiveNext = {
-            ...next,
-            reasoningEffort: remembered.reasoningEffort,
-          };
+        if (service.isEnabled() && next?.provider && next?.model) {
+          void service.remember({
+            provider: next.provider,
+            model: next.model,
+            reasoningEffort: next.reasoningEffort,
+          }).catch(() => {});
         }
-      }
+      } catch {}
 
-      return originalSaveSelection(effectiveNext);
+      return originalSaveSelection(next);
     };
 
     ctx.effect(() => () => {

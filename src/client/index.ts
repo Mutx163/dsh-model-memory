@@ -549,9 +549,12 @@ export function apply(ctx: ClientContext): void {
     pluginList.prepend(li);
   };
 
-  // 2. 深度内嵌到官方「模型设置」条目中
+  // 2. 深度内嵌到官方「模型设置」条目中（严格限定在设置面板内，绝不干扰输入框/会话浮层）
   const injectInlineModelReasoning = async () => {
-    const modelEntries = document.querySelectorAll('[class*="modelEntry"], [class*="modelAdvanced"], [class*="rowCard"]');
+    const settingsContainer = document.querySelector('[data-pane="settings"], [class*="settingsSection"], [class*="ModelsSettingsSection"], [class*="ModelSettings"]');
+    if (!settingsContainer) return;
+
+    const modelEntries = settingsContainer.querySelectorAll('[class*="modelEntry"], [class*="modelAdvanced"]');
     if (modelEntries.length === 0) return;
 
     if (cachedProviders.length === 0) {
@@ -559,6 +562,8 @@ export function apply(ctx: ClientContext): void {
     }
 
     modelEntries.forEach((entry) => {
+      // 双重保护：如果处于浮层或下拉菜单中，绝不注入
+      if (entry.closest('[class*="overlay"], [class*="popover"], [class*="menu"], [class*="composer"]')) return;
       if (entry.hasAttribute(INLINE_INJECT_ATTR)) return;
 
       const inputs = entry.querySelectorAll('input[type="text"], input:not([type])');
