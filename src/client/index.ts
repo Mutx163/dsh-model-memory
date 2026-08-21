@@ -137,7 +137,8 @@ function ModelMemoryCard(props: { callRpc: CallRpc }): any {
 
   const getDraft = (pid: string, m: CustomModelReasoningConfig): TierDraft => {
     const k = draftKey(pid, m.id);
-    return drafts[k] ?? { enabled: m.supportsReasoningEffort, tiers: [...m.supportedEffortList] };
+    // 默认档位：从未配置过的模型默认全选标准档位；已配置的保持已存集合
+    return drafts[k] ?? { enabled: m.supportsReasoningEffort, tiers: m.supportedEffortList.length > 0 ? [...m.supportedEffortList] : [...ALL_STANDARD_TIERS] };
   };
 
   const allTiers = (pid: string, m: CustomModelReasoningConfig): string[] => {
@@ -290,6 +291,15 @@ function ModelMemoryCard(props: { callRpc: CallRpc }): any {
                     },
                     children: '添加',
                   }),
+                  j('button', {
+                    className: 'dsh-mm-btn',
+                    type: 'button',
+                    onClick: () => {
+                      const allChecked = tiers.every((t) => draft.tiers.includes(t));
+                      setDraft(current.id, m.id, { ...draft, tiers: allChecked ? [] : [...tiers] });
+                    },
+                    children: tiers.every((t) => draft.tiers.includes(t)) ? '取消全选' : '全选',
+                  }),
                 ] }),
               ],
             }),
@@ -403,7 +413,8 @@ export function apply(ctx: ClientContext): void {
 
       const allTiers = Array.from(new Set([...ALL_STANDARD_TIERS, ...matchedModel.supportedEffortList]));
       const chks = allTiers.map((t) => {
-        const checked = matchedModel && matchedModel.supportedEffortList.includes(t) ? ' checked' : '';
+        // 默认档位：从未配置过的模型默认全选；已配置的保持已存集合
+        const checked = (matchedModel && matchedModel.supportedEffortList.length > 0 ? matchedModel.supportedEffortList.includes(t) : true) ? ' checked' : '';
         return '<label class="dsh-mm-chk"><input type="checkbox" data-inline-tier="' + escapeHtml(t) + '"' + checked + ' /><span>' + escapeHtml(t) + '</span></label>';
       }).join('');
 
@@ -419,6 +430,7 @@ export function apply(ctx: ClientContext): void {
         + '<div style="display:inline-flex;align-items:center;gap:4px;">'
         + '<input type="text" class="dsh-mm-input" placeholder="+ 自定义" data-inline-input />'
         + '<button class="dsh-mm-btn" type="button" data-inline-add>添加</button>'
+        + '<button class="dsh-mm-btn" type="button" data-inline-toggle-all>全选/取消全选</button>'
         + '</div>'
         + '</div>';
 
@@ -438,6 +450,14 @@ export function apply(ctx: ClientContext): void {
         lbl.innerHTML = '<input type="checkbox" data-inline-tier="' + escapeHtml(val) + '" checked /><span>' + escapeHtml(val) + '</span>';
         container.insertBefore(lbl, addBtn.parentElement);
         if (customInputEl) customInputEl.value = '';
+      });
+
+      const toggleAllBtn = inlineBox.querySelector('[data-inline-toggle-all]');
+      toggleAllBtn?.addEventListener('click', () => {
+        const boxes = Array.from(inlineBox.querySelectorAll('input[data-inline-tier]')) as HTMLInputElement[];
+        const allChecked = boxes.length > 0 && boxes.every((b) => b.checked);
+        boxes.forEach((b) => { b.checked = !allChecked; });
+        toggleAllBtn.textContent = allChecked ? '全选' : '取消全选';
       });
 
       const saveBtn = inlineBox.querySelector('[data-inline-save]');
