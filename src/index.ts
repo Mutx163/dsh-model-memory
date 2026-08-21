@@ -51,20 +51,34 @@ export function apply(ctx: Context, config: unknown): void {
     };
   }, 'dsh-model-memory: lifecycle');
 
-  // 2. 纯静默被动记忆：异步记录偏好，毫秒级即时响应，零等待
+  // 2. 核心记忆与自动回填：切换模型时自动提取历史思考强度并注入
   if (host.agentDefaultModel) {
     const originalSaveSelection = host.agentDefaultModel.saveSelection.bind(host.agentDefaultModel);
 
     host.agentDefaultModel.saveSelection = async (next) => {
+      let targetSelection = next;
+
       if (service.isEnabled() && next?.provider && next?.model) {
-        void service.remember({
-          provider: next.provider,
-          model: next.model,
-          reasoningEffort: next.reasoningEffort,
-        }).catch(() => {});
+        if (next.reasoningEffort) {
+          // 用户显式切换了思考等级 -> 记录偏好
+          void service.remember({
+            provider: next.provider,
+            model: next.model,
+            reasoningEffort: next.reasoningEffort,
+          }).catch(() => {});
+        } else {
+          // 用户点击切换了模型（未带思考等级）-> 从记忆库中自动提取并补全
+          const remembered = service.getPreference(next.provider, next.model);
+          if (remembered?.reasoningEffort) {
+            targetSelection = {
+              ...next,
+              reasoningEffort: remembered.reasoningEffort,
+            };
+          }
+        }
       }
 
-      return originalSaveSelection(next);
+      return originalSaveSelection(targetSelection);
     };
 
     ctx.effect(() => () => {
