@@ -26,7 +26,9 @@ export type HostContext = Context & {
   connection?: HostConnectionHandle;
   llm?: LlmServiceLike;
   agentDefaultModel?: AgentDefaultModelLike;
+  /** 宿主 settings 服务（dsh-settings SettingsProvider 的最小写入面） */
   settings?: {
+    mutate(namespace: string, ops: { op: 'set' | 'unset'; path: string[]; value?: unknown }[]): Promise<void>;
     replace(namespace: unknown, value: unknown): Promise<void>;
   };
 };

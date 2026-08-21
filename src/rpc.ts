@@ -1,8 +1,14 @@
 /**
  * dsh-model-memory — RPC 接口封装
+ *
+ * 修复记录（v0.1.4）：
+ * - update-model-reasoning 不再凭空「记住」一个用户从未选择过的档位
+ *   （旧逻辑在保存配置时强制把 max/末位档位写进记忆库，污染偏好数据）；
+ * - 写入优先走宿主 settings 服务（带锁、注释保留、原子提交），
+ *   宿主服务缺失时回退到文件直写。
  */
 import type { HostConnectionHandle } from '@deepseek-ai/dsh-client-connection';
-import type { ModelMemoryService } from './memory.ts';
+import type { ModelMemoryService, HostContext } from './memory.ts';
 import type { ModelSelectionPayload } from './types.ts';
 import { DshSettingsManager, type UpdateModelReasoningPayload } from './settings.ts';
 
@@ -12,6 +18,7 @@ export function installMemoryRpc(
   connection: HostConnectionHandle,
   service: ModelMemoryService,
   settingsManager: DshSettingsManager = new DshSettingsManager(),
+  host?: HostContext,
 ): () => Promise<void> {
   return connection.rpc.handle(
     MEMORY_RPC_CHANNEL,
@@ -58,19 +65,13 @@ export function installMemoryRpc(
 
         if (endpoint === 'update-model-reasoning') {
           const updatePayload = parseUpdateReasoningPayload(payload);
-          const updated = await settingsManager.updateModelReasoning(updatePayload);
-          // 同步自动记住偏好
-          if (updatePayload.supportsReasoningEffort) {
-            const efforts = Array.isArray(updatePayload.reasoningEfforts)
-              ? updatePayload.reasoningEfforts
-              : Object.keys(updatePayload.reasoningEfforts || {});
-            const defaultEffort = efforts.includes('max') ? 'max' : (efforts[efforts.length - 1] || 'high');
-            await service.remember({
-              provider: updatePayload.providerId,
-              model: updatePayload.modelId,
-              reasoningEffort: defaultEffort,
-            });
-          }
+          // 优先走宿主 settings 服务：跨进程锁 + 注释保留 + 原子提交
+          const hostWriter = host?.settings;
+          const updated = hostWriter && typeof hostWriter.mutate === 'function'
+            ? await settingsManager.updateModelReasoningViaHost(hostWriter, updatePayload)
+            : await settingsManager.updateModelReasoning(updatePayload);
+          // 注意：此处不再自动写入任何思考等级偏好——
+          // 配置模型支持的档位集合 ≠ 用户选择了某个档位。
           return { ok: true, value: updated };
         }
 

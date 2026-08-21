@@ -549,12 +549,15 @@ export function apply(ctx: ClientContext): void {
     pluginList.prepend(li);
   };
 
-  // 2. 深度内嵌到官方「模型设置」条目中（严格限定在设置面板内，绝不干扰输入框/会话浮层）
+  // 2. 深度内嵌到官方「模型设置」条目中
+  //    v0.1.4：不再依赖设置页容器类名做外层限定（官方前端改版会漂移：
+  //    2026-08-21 的 dsh 更新移除了 settingsSection/data-pane 等全部旧标记，
+  //    导致内嵌注入静默失效）。改为双重数据锚点：
+  //      a) [class*="modelEntry"] 经全量扫描确认只存在于官方模型设置页；
+  //      b) 注入前仍要求行内文本输入框的值精确等于本插件的自定义模型 id。
+  //    两关都过才会渲染，官方改类名不会导致误注入，只会安全地不渲染。
   const injectInlineModelReasoning = async () => {
-    const settingsContainer = document.querySelector('[data-pane="settings"], [class*="settingsSection"], [class*="ModelsSettingsSection"], [class*="ModelSettings"]');
-    if (!settingsContainer) return;
-
-    const modelEntries = settingsContainer.querySelectorAll('[class*="modelEntry"], [class*="modelAdvanced"]');
+    const modelEntries = document.querySelectorAll('[class*="modelEntry"], [class*="modelAdvanced"]');
     if (modelEntries.length === 0) return;
 
     if (cachedProviders.length === 0) {

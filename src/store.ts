@@ -1,9 +1,14 @@
 /**
  * dsh-model-memory — 持久化存储引擎
+ *
+ * 修复记录（v0.1.4）：
+ * - 落盘失败不再静默：清理自己的临时文件并向上抛出，由调用方决定降级策略；
+ * - init 时清扫历史版本遗留的 *.tmp 遗骸；
+ * - 写入串行化（写链），避免并发 remember 交叉产生临时文件堆积。
  */
-import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, rename, readdir, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { join, dirname, basename } from 'node:path';
 import { homedir } from 'node:os';
 import type { ChannelPreference, ModelMemoryState, ModelSelectionPayload, ReasoningEffortLevel } from './types.ts';
 
@@ -13,6 +18,14 @@ export function defaultStoragePath(): string {
   return join(homedir(), '.dsh', 'model-memory.json');
 }
 
+/** 落盘失败错误：携带底层原因，便于上层记录日志 */
+export class MemoryPersistError extends Error {
+  constructor(public readonly cause: unknown) {
+    super('dsh-model-memory: 偏好落盘失败: ' + String(cause));
+    this.name = 'MemoryPersistError';
+  }
+}
+
 export class MemoryStore {
   private readonly filePath: string;
   private state: ModelMemoryState = {
@@ -20,7 +33,8 @@ export class MemoryStore {
     channels: {},
   };
   private initialized = false;
-  private savePromise: Promise<void> | null = null;
+  /** 串行化所有落盘操作：后一次写入排队等前一次完成，绝不交叉执行 */
+  private writeChain: Promise<void> = Promise.resolve();
 
   constructor(customPath?: string) {
     this.filePath = customPath ?? defaultStoragePath();
@@ -42,8 +56,21 @@ export class MemoryStore {
         }
       }
     } catch {
-      // 容错：解析失败保持初始状态
+      // 容错：解析失败保持初始状态（不覆盖磁盘上的文件，等下次成功写入时重建）
     }
+    // 清扫历史版本崩溃/失败遗留的临时文件（best-effort，不阻塞启动）
+    await this.sweepTempFiles().catch(() => {});
+  }
+
+  /** 清理本插件历史版本遗留的 model-memory.json.*.tmp 遗骸 */
+  async sweepTempFiles(): Promise<void> {
+    const dir = dirname(this.filePath);
+    // readdir 返回的是文件名而非全路径，前缀必须用 basename 匹配
+    const prefix = basename(this.filePath) + '.';
+    const entries = await readdir(dir).catch(() => [] as string[]);
+    const fossils = entries.filter((name) => name.startsWith(prefix) && name.endsWith('.tmp'));
+    if (fossils.length === 0) return;
+    await Promise.all(fossils.map((name) => rm(join(dir, name), { force: true }).catch(() => {})));
   }
 
   getState(): Readonly<ModelMemoryState> {
@@ -131,29 +158,26 @@ export class MemoryStore {
   }
 
   /**
-   * 原子化落盘持久化
+   * 原子化落盘持久化（写入串行化；失败时清理临时文件并抛出 MemoryPersistError）
    */
-  private async persist(): Promise<void> {
-    if (this.savePromise) {
-      await this.savePromise;
-    }
-    this.savePromise = this.doPersist();
-    try {
-      await this.savePromise;
-    } finally {
-      this.savePromise = null;
-    }
+  private persist(): Promise<void> {
+    const run = this.writeChain.then(() => this.doPersist());
+    // 链上吞掉失败以免阻断后续写入，但把真实结果返回给本次调用方
+    this.writeChain = run.then(() => undefined, () => undefined);
+    return run;
   }
 
   private async doPersist(): Promise<void> {
+    const tempPath = `${this.filePath}.${Date.now()}-${Math.random().toString(36).slice(2)}.tmp`;
     try {
       const dir = dirname(this.filePath);
       await mkdir(dir, { recursive: true });
-      const tempPath = `${this.filePath}.${Date.now()}-${Math.random().toString(36).slice(2)}.tmp`;
       await writeFile(tempPath, JSON.stringify(this.state, null, 2), 'utf-8');
       await rename(tempPath, this.filePath);
-    } catch {
-      // 忽略文件写入异常，避免阻断运行
+    } catch (error) {
+      // 失败时必须清掉自己的临时文件，绝不留遗骸
+      await rm(tempPath, { force: true }).catch(() => {});
+      throw new MemoryPersistError(error);
     }
   }
 }

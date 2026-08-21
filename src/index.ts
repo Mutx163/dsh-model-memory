@@ -1,7 +1,13 @@
 /**
  * dsh-model-memory — DSH 渠道与思考强度记忆插件（Host 侧）
  *
- * @module dsh-model-memory
+ * 修复记录（v0.1.4）：
+ * - saveSelection 包装不再把「显式清除档位」误判为「需要回填旧记忆」：
+ *   wire 协议里 reasoningEffort 缺省与「用户选了 Default」无法区分，
+ *   因此只有当记忆库中该模型的偏好与本次提交一致时才补全，绝不覆盖
+ *   用户刚刚做出的选择；
+ * - 记忆落盘失败时记录告警（不再静默丢数据）；
+ * - syncDefaultModel=false 时不再向 agentDefaultModel 注入回填。
  */
 import type { Context } from '@deepseek-ai/cordis';
 import z from '@deepseek-ai/schemastery';
@@ -40,7 +46,7 @@ export function apply(ctx: Context, config: unknown): void {
 
       // 注册 RPC 通道 /model-memory
       if (host.connection?.rpc) {
-        disposeRpc = installMemoryRpc(host.connection, service, settingsManager);
+        disposeRpc = installMemoryRpc(host.connection, service, settingsManager, host);
       }
     }).catch((err) => {
       logger.error('dsh-model-memory 初始化失败: ' + String(err));
@@ -60,14 +66,18 @@ export function apply(ctx: Context, config: unknown): void {
 
       if (service.isEnabled() && next?.provider && next?.model) {
         if (next.reasoningEffort) {
-          // 用户显式切换了思考等级 -> 记录偏好
+          // 用户显式选择了思考等级 -> 记录偏好（失败仅告警，不阻断切换）
           void service.remember({
             provider: next.provider,
             model: next.model,
             reasoningEffort: next.reasoningEffort,
-          }).catch(() => {});
-        } else {
-          // 用户点击切换了模型（未带思考等级）-> 从记忆库中自动提取并补全
+          }).catch((err) => {
+            logger.warn('dsh-model-memory: 偏好记录落盘失败: ' + String(err));
+          });
+        } else if (cfg.syncDefaultModel !== false) {
+          // 未携带思考等级：可能是「切模型」也可能是「清除档位」。
+          // 仅当记忆中的偏好与本次提交的 provider/model 完全一致时才回填，
+          // 避免用陈旧记忆覆盖用户刚做的选择。
           const remembered = service.getPreference(next.provider, next.model);
           if (remembered?.reasoningEffort) {
             targetSelection = {

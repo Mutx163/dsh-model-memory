@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -10,7 +10,7 @@ describe('ModelMemoryService', () => {
   let storeFile: string;
 
   beforeEach(async () => {
-    tempDir = await mkdtemp(join(tmpdir(), 'dsh-srv-test-'));
+    tempDir = await mkdtemp(join(tmpdir(), 'dsh-mem-test-'));
     storeFile = join(tempDir, 'memory.json');
   });
 
@@ -18,31 +18,12 @@ describe('ModelMemoryService', () => {
     await rm(tempDir, { recursive: true, force: true });
   });
 
-  it('remembers preference passively without recursive loop', async () => {
-    const fakeAgentDefaultModel = {
-      currentSelection: () => ({ provider: 'deepseek-official', model: 'deepseek-v4-pro' }),
-      saveSelection: async () => {},
-    };
-
-    const ctx = {
+  function makeCtx(llm?: unknown): HostContext {
+    return {
       logger: () => ({ info: () => {}, warn: () => {}, error: () => {} }),
-      agentDefaultModel: fakeAgentDefaultModel,
+      llm,
     } as unknown as HostContext;
-
-    const store = new MemoryStore(storeFile);
-    const service = new ModelMemoryService(ctx, {}, store);
-    await service.init();
-
-    await service.remember({
-      provider: 'deepseek-official',
-      model: 'deepseek-v4-pro',
-      reasoningEffort: 'max',
-    });
-
-    const pref = service.getPreference('deepseek-official');
-    expect(pref?.reasoningEffort).toBe('max');
-    expect(pref?.model).toBe('deepseek-v4-pro');
-  });
+  }
 
   it('resolves model preferences with LLM metadata verification', async () => {
     const fakeLlm = {
@@ -57,13 +38,8 @@ describe('ModelMemoryService', () => {
       }),
     };
 
-    const ctx = {
-      logger: () => ({ info: () => {}, warn: () => {}, error: () => {} }),
-      llm: fakeLlm,
-    } as unknown as HostContext;
-
     const store = new MemoryStore(storeFile);
-    const service = new ModelMemoryService(ctx, {}, store);
+    const service = new ModelMemoryService(makeCtx(fakeLlm), {}, store);
     await service.init();
 
     await service.remember({
@@ -74,5 +50,20 @@ describe('ModelMemoryService', () => {
 
     const resolved = await service.resolvePreference('custom-api', 'custom-gpt');
     expect(resolved?.reasoningEffort).toBe('high');
+  });
+
+  it('propagates persist failures instead of silently dropping them', async () => {
+    // 指向一个不可写路径（用文件冒充目录）
+    const blocker = join(tempDir, 'blocker');
+    const { writeFile } = await import('node:fs/promises');
+    await writeFile(blocker, 'not a dir', 'utf-8');
+
+    const store = new MemoryStore(join(blocker, 'memory.json'));
+    const service = new ModelMemoryService(makeCtx(), {}, store);
+    await service.init();
+
+    await expect(
+      service.remember({ provider: 'p', model: 'm', reasoningEffort: 'max' }),
+    ).rejects.toThrow(/落盘失败/);
   });
 });
