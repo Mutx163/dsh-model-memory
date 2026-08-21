@@ -136,6 +136,17 @@ export class ModelMemoryService {
   }
 
   /**
+   * 开启或关闭跨会话记忆
+   */
+  setEnabled(enabled: boolean): void {
+    this.config.enabled = enabled;
+  }
+
+  isEnabled(): boolean {
+    return this.config.enabled;
+  }
+
+  /**
    * 重置记忆
    */
   async reset(provider?: string): Promise<void> {

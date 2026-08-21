@@ -45,6 +45,12 @@ export function installMemoryRpc(
           return { ok: true, value: service.getStatus() };
         }
 
+        if (endpoint === 'toggle-memory') {
+          const enabled = typeof payload === 'boolean' ? payload : Boolean((payload as any)?.enabled);
+          service.setEnabled(enabled);
+          return { ok: true, value: service.getStatus() };
+        }
+
         if (endpoint === 'list-providers') {
           const providers = await settingsManager.listCustomProviders();
           return { ok: true, value: providers };
