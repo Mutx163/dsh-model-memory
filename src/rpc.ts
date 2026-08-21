@@ -46,6 +46,13 @@ export function installMemoryRpc(
           return { ok: true, value: resolved ?? null };
         }
 
+        if (endpoint === 'forget-effort') {
+          const { provider, model } = parseQuery(payload);
+          if (!provider || !model) throw new Error('provider and model are required');
+          await service.clearEffort(provider, model);
+          return { ok: true, value: service.getStatus() };
+        }
+
         if (endpoint === 'reset') {
           const provider = typeof payload === 'string' ? payload : (payload as Record<string, unknown>)?.provider as string | undefined;
           await service.reset(provider);

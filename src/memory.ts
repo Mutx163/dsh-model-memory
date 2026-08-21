@@ -136,6 +136,14 @@ export class ModelMemoryService {
   }
 
   /**
+   * 清除指定渠道下某个模型的档位记忆（用户显式清除档位时调用）
+   */
+  async clearEffort(provider: string, model: string): Promise<void> {
+    if (!this.config.enabled) return;
+    await this.store.clearEffort(provider, model);
+  }
+
+  /**
    * 运行时更新配置（settings 命名空间变更时由宿主回调）
    */
   updateConfig(patch: Partial<ModelMemoryConfig>): void {

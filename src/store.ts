@@ -158,6 +158,18 @@ export class MemoryStore {
   }
 
   /**
+   * 清除指定渠道下某个模型的思考档位记忆（保留 lastModel）
+   */
+  async clearEffort(provider: string, model: string): Promise<void> {
+    const channel = this.state.channels[provider];
+    if (!channel) return;
+    if (!(model in channel.efforts)) return;
+    delete channel.efforts[model];
+    channel.updatedAt = new Date().toISOString();
+    await this.persist();
+  }
+
+  /**
    * 原子化落盘持久化（写入串行化；失败时清理临时文件并抛出 MemoryPersistError）
    */
   private persist(): Promise<void> {

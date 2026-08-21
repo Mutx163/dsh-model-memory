@@ -367,6 +367,64 @@ export function apply(ctx: ClientContext): void {
     }
   };
 
+  // 会话内即时恢复：官方切换模型时先定会话状态再持久化，宿主端注入的档位
+  // 只影响“下次会话的默认”，当前会话界面不会显示。这里包装共享的
+  // api.sessions.selectModel（ui-model-selection 动态查找该方法，包装对
+  // 所有调用方生效）：若本次选择未带档位且该模型有记忆档位，则自动补一次
+  // 带档位的选择。同模型不带档位视为显式清除 -> 通知宿主删除记忆。
+  const lastSelectionBySession = new Map<string, { provider: string; model: string }>();
+  const wireSessionSelectModel = () => {
+    const api = (connection as unknown as { api?: { sessions?: Record<string, unknown> } } | undefined)?.api;
+    const originalSelectModel = api?.sessions?.selectModel;
+    if (typeof originalSelectModel !== 'function') return;
+    api!.sessions!.selectModel = async (payload: any, signal?: AbortSignal) => {
+      const res = await (originalSelectModel as (p: any, s?: AbortSignal) => Promise<any>)(payload, signal);
+      try {
+        const selected = res && res.ok ? res.value && res.value.selected : undefined;
+        if (
+          selected &&
+          selected.reasoningEffort === undefined &&
+          payload && payload.provider && payload.model && payload.sessionId !== undefined &&
+          typeof payload.reasoningEffort !== 'string'
+        ) {
+          const previous = lastSelectionBySession.get(String(payload.sessionId));
+          const sameRoute = Boolean(previous && previous.provider === selected.provider && previous.model === selected.model);
+          if (!sameRoute) {
+            // 模型切换：查询记忆并补选
+            const pref = await callRpc('get-preference', { provider: selected.provider, model: selected.model });
+            if (pref && pref.reasoningEffort) {
+              const followUp = await (originalSelectModel as (p: any, s?: AbortSignal) => Promise<any>)(
+                { ...payload, reasoningEffort: pref.reasoningEffort },
+                signal,
+              );
+              if (followUp && followUp.ok) {
+                lastSelectionBySession.set(String(payload.sessionId), {
+                  provider: selected.provider,
+                  model: selected.model,
+                });
+                return followUp;
+              }
+            }
+          } else {
+            // 同一模型再次不带档位：显式清除档位 -> 删除记忆
+            void callRpc('forget-effort', { provider: selected.provider, model: selected.model }).catch(() => undefined);
+          }
+        }
+        if (selected && payload && payload.sessionId !== undefined) {
+          lastSelectionBySession.set(String(payload.sessionId), {
+            provider: selected.provider,
+            model: selected.model,
+          });
+        }
+      } catch {
+        // 记忆查询或补选失败：静默回退到原始结果
+      }
+      return res;
+    };
+  };
+
+  wireSessionSelectModel();
+
   // 深度内嵌到官方「模型设置」条目中。
   // v0.1.4：不依赖设置页容器类名做外层限定（官方前端改版会漂移：
   // 2026-08-21 的 dsh 更新移除了 settingsSection/data-pane 等全部旧标记，
