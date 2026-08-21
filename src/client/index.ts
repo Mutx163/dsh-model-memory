@@ -378,6 +378,10 @@ export function apply(ctx: ClientContext): void {
     return p?.models.find((m) => m.id === modelId || m.name === modelId)?.rememberedEffort;
   };
 
+  // 缓存中是否出现过记忆注记字段：用于识别当前宿主是否为支持注记的新版本
+  const cacheAnnotated = (): boolean =>
+    cachedProviders.some((prov) => prov.models.some((m) => typeof m.rememberedEffort === 'string'));
+
   // 会话内即时恢复：官方切换模型时先定会话状态再持久化，宿主端注入的档位
   // 只影响「下次会话的默认」，当前会话界面不会显示。这里包装共享的
   // api.sessions.selectModel（ui-model-selection 动态查找该方法，包装对
@@ -403,7 +407,14 @@ export function apply(ctx: ClientContext): void {
           payload && payload.provider && payload.model &&
           typeof payload.reasoningEffort !== 'string'
         ) {
-          const remembered = rememberedFor(selected.provider, selected.model);
+          let remembered = rememberedFor(selected.provider, selected.model);
+          if (!remembered && cachedProviders.length > 0 && !cacheAnnotated()) {
+            // 旧版宿主的 list-providers 不带记忆注记：退回逐次查询，保证兼容
+            try {
+              const pref = await callRpc('get-preference', { provider: selected.provider, model: selected.model });
+              remembered = pref?.reasoningEffort;
+            } catch { /* 查询失败按无记忆处理 */ }
+          }
           if (remembered) {
             const followUp = await (originalSelectModel as (p: any, s?: AbortSignal) => Promise<any>)(
               { ...payload, reasoningEffort: remembered },
