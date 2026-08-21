@@ -40,7 +40,7 @@
     "lib",
     "cordis.patch.yml",
     "README.md",
-    "README.zh.md",
+    "README_EN.md",
     "LICENSE"
   ],
   "engines": {
