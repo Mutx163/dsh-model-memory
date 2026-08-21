@@ -1,0 +1,6 @@
+# dsh-model-memory bundle layer: mounts the channel & thinking intensity
+# memory plugin (host half + web client half) into the profile.
+- insert:
+    - id: dsh-model-memory
+      name: dsh-model-memory
+      config: {}
