@@ -1,10 +1,7 @@
 /**
  * dsh-model-memory — Web 客户端插件
  *
- * 极简、全档位、高可靠的“思考等级配置与偏好记忆”组件：
- * 1. 深度集成在官方设置页面（模型设置项内直接注入全档位勾选；插件设置内提供备份管理面板）。
- * 2. 思考等级全覆盖：none / minimal / low / medium / high / xhigh / max + 支持自定义扩展档位。
- * 3. 提供清晰的【跨会话偏好记忆总开关】。
+ * 遵循 DSH 原生设计语言与 CSS 变量规范，无表情符号，克制精炼。
  *
  * @module dsh-model-memory/client
  */
@@ -38,222 +35,231 @@ interface CustomProviderInfo {
 }
 
 const cssText = `
-/* 插件设置页内的可折叠卡片 */
+/* 插件设置卡片样式：完全与 DSH 官方设计规范对齐 */
 li[data-dsh-model-memory-card] {
   list-style: none;
-  background: var(--dsw-alias-bg-layer-2, #ffffff);
-  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
+  background: var(--dsw-alias-bg-layer-3);
+  border: 1px solid var(--dsw-alias-border-l2);
   border-radius: 12px;
   overflow: hidden;
-  margin-bottom: 12px;
-  transition: border-color 0.15s ease;
+  margin-bottom: 8px;
+  transition: border-color 0.16s, background 0.16s;
   font-family: inherit;
+  color: var(--dsw-alias-label-primary);
 }
 li[data-dsh-model-memory-card]:hover {
-  border-color: var(--dsw-alias-label-dimmed, #8c959f);
+  border-color: var(--dsw-alias-label-dimmed);
 }
-li[data-dsh-model-memory-card] .mm-card-header {
+li[data-dsh-model-memory-card].open {
+  background: var(--dsw-alias-bg-layer-2);
+  border-color: var(--dsw-alias-label-dimmed);
+}
+li[data-dsh-model-memory-card] .dsh-mm-header {
   width: 100%;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 16px;
-  background: transparent;
-  border: none;
+  padding: 12px 14px;
+  background: none;
+  border: 0;
   cursor: pointer;
   text-align: left;
   color: inherit;
 }
-li[data-dsh-model-memory-card] .mm-card-head-text {
+li[data-dsh-model-memory-card] .dsh-mm-head-text {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
 }
-li[data-dsh-model-memory-card] .mm-card-title {
+li[data-dsh-model-memory-card] .dsh-mm-title {
   font-size: 14px;
-  font-weight: 600;
-  color: var(--dsw-alias-label-primary, #1f2328);
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  font-weight: 500;
+  color: var(--dsw-alias-label-primary);
+  line-height: 20px;
 }
-li[data-dsh-model-memory-card] .mm-card-desc {
+li[data-dsh-model-memory-card] .dsh-mm-desc {
   font-size: 12px;
-  color: var(--dsw-alias-label-tertiary, #656d76);
+  color: var(--dsw-alias-label-tertiary);
+  line-height: 18px;
 }
-li[data-dsh-model-memory-card] .mm-card-chevron {
-  font-size: 14px;
-  color: var(--dsw-alias-label-tertiary, #656d76);
-  transition: transform 0.2s ease;
+li[data-dsh-model-memory-card] .dsh-mm-chevron {
+  font-size: 12px;
+  color: var(--dsw-alias-label-tertiary);
+  transition: transform 0.16s ease;
+  flex: none;
 }
-li[data-dsh-model-memory-card].open .mm-card-chevron {
+li[data-dsh-model-memory-card].open .dsh-mm-chevron {
   transform: rotate(180deg);
 }
-li[data-dsh-model-memory-card] .mm-card-body {
-  border-top: 1px solid var(--dsw-alias-border-l2, #d0d7de);
-  padding: 14px 16px;
-  background: var(--dsw-alias-bg-layer-1, #f6f8fa);
+li[data-dsh-model-memory-card] .dsh-mm-body {
+  border-top: 1px solid var(--dsw-alias-border-l2);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
-li[data-dsh-model-memory-card] .mm-global-switch {
+li[data-dsh-model-memory-card] .dsh-mm-switch-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 14px;
-  background: var(--dsw-alias-bg-layer-2, #ffffff);
-  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
-  border-radius: 8px;
-  margin-bottom: 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--dsw-alias-border-l2);
 }
-li[data-dsh-model-memory-card] .mm-global-switch-title {
-  font-weight: 600;
+li[data-dsh-model-memory-card] .dsh-mm-switch-label {
   font-size: 13px;
-  color: var(--dsw-alias-label-primary, #1f2328);
+  font-weight: 500;
+  color: var(--dsw-alias-label-primary);
 }
-li[data-dsh-model-memory-card] .mm-global-switch-desc {
+li[data-dsh-model-memory-card] .dsh-mm-switch-hint {
   font-size: 12px;
-  color: var(--dsw-alias-label-tertiary, #656d76);
+  color: var(--dsw-alias-label-tertiary);
 }
-li[data-dsh-model-memory-card] .mm-tabs {
+li[data-dsh-model-memory-card] .dsh-mm-tabs {
   display: flex;
   gap: 6px;
-  border-bottom: 1px solid var(--dsw-alias-border-l2, #d0d7de);
-  margin-bottom: 12px;
-  padding-bottom: 6px;
   overflow-x: auto;
+  padding-bottom: 4px;
 }
-li[data-dsh-model-memory-card] .mm-tab {
-  padding: 4px 10px;
-  border: 1px solid transparent;
+li[data-dsh-model-memory-card] .dsh-mm-tab {
+  padding: 3px 10px;
+  border: 1px solid var(--dsw-alias-border-l2);
   border-radius: 6px;
-  background: transparent;
+  background: 0 0;
   cursor: pointer;
-  font-weight: 500;
   font-size: 12px;
-  color: var(--dsw-alias-label-secondary, #656d76);
+  color: var(--dsw-alias-label-secondary);
   white-space: nowrap;
 }
-li[data-dsh-model-memory-card] .mm-tab.active {
-  background: var(--dsw-alias-brand-primary, #2d6cdf);
-  color: #fff;
+li[data-dsh-model-memory-card] .dsh-mm-tab:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
 }
-li[data-dsh-model-memory-card] .mm-model-card {
-  border: 1px solid var(--dsw-alias-border-l2, #e1e4e8);
+li[data-dsh-model-memory-card] .dsh-mm-tab.active {
+  background: var(--dsw-alias-interactive-bg-hover-solid, var(--dsw-alias-bg-module-platform));
+  color: var(--dsw-alias-label-primary);
+  border-color: var(--dsw-alias-label-dimmed);
+}
+li[data-dsh-model-memory-card] .dsh-mm-model-row {
+  border: 1px solid var(--dsw-alias-border-l2);
   border-radius: 8px;
-  padding: 12px;
-  margin-bottom: 10px;
-  background: var(--dsw-alias-bg-layer-2, #ffffff);
+  padding: 10px 12px;
+  background: var(--dsw-alias-bg-layer-1);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
-li[data-dsh-model-memory-card] .mm-model-head {
+li[data-dsh-model-memory-card] .dsh-mm-model-head {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
 }
-li[data-dsh-model-memory-card] .mm-model-title {
-  font-weight: 600;
+li[data-dsh-model-memory-card] .dsh-mm-model-id {
+  font-family: var(--ds-font-family-code, monospace);
   font-size: 13px;
-  color: var(--dsw-alias-label-primary, #1f2328);
-}
-li[data-dsh-model-memory-card] .mm-badge {
-  font-size: 11px;
-  padding: 2px 6px;
-  border-radius: 6px;
   font-weight: 500;
+  color: var(--dsw-alias-label-primary);
 }
-li[data-dsh-model-memory-card] .mm-badge.active {
-  background: #dafbe1;
-  color: #1a7f37;
+li[data-dsh-model-memory-card] .dsh-mm-badge {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  line-height: 16px;
+  background: var(--dsw-alias-bg-module-platform);
+  color: var(--dsw-alias-label-secondary);
+  border: 1px solid var(--dsw-alias-border-l3);
 }
-li[data-dsh-model-memory-card] .mm-badge.inactive {
-  background: #f6f8fa;
-  color: #656d76;
+li[data-dsh-model-memory-card] .dsh-mm-badge.active {
+  color: var(--dsw-alias-state-success-primary);
+  border-color: var(--dsw-alias-state-success-primary);
 }
-li[data-dsh-model-memory-card] .mm-field-row {
+li[data-dsh-model-memory-card] .dsh-mm-controls {
   display: flex;
+  align-items: center;
   gap: 12px;
-  align-items: center;
-  margin: 8px 0;
   flex-wrap: wrap;
 }
-li[data-dsh-model-memory-card] .mm-tiers {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-.mm-tier-chk {
-  display: flex;
+.dsh-mm-chk {
+  display: inline-flex;
   align-items: center;
   gap: 4px;
   cursor: pointer;
   font-size: 12px;
-  color: var(--dsw-alias-label-primary, #1f2328);
+  color: var(--dsw-alias-label-primary);
+  user-select: none;
 }
-.mm-btn {
-  padding: 4px 10px;
-  border-radius: 6px;
-  font-weight: 500;
-  font-size: 12px;
+.dsh-mm-btn {
+  box-sizing: border-box;
+  height: 26px;
+  font: inherit;
   cursor: pointer;
-  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
-  background: var(--dsw-alias-bg-layer-2, #fff);
-  color: inherit;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 6px;
+  padding: 0 10px;
+  font-size: 12px;
+  line-height: 24px;
+  color: var(--dsw-alias-label-primary);
+  background: 0 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
-.mm-btn.primary {
-  background: var(--dsw-alias-brand-primary, #2d6cdf);
-  color: #fff;
+.dsh-mm-btn:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+.dsh-mm-btn:disabled {
+  opacity: .4;
+  cursor: default;
+}
+.dsh-mm-btn-primary {
+  background: var(--dsw-alias-button-primary-fill, #2d6cdf);
+  color: var(--dsw-alias-label-primary-foreground, #fff);
   border-color: transparent;
 }
-.mm-btn.primary:hover {
-  filter: brightness(1.08);
+.dsh-mm-btn-primary:hover:not(:disabled) {
+  background: var(--dsw-alias-button-primary-hover, #2558b8);
 }
-.mm-msg {
+.dsh-mm-input {
+  box-sizing: border-box;
+  height: 26px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 6px;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+  padding: 0 8px;
   font-size: 12px;
-  margin-top: 4px;
-  padding: 2px 6px;
-  border-radius: 4px;
+  width: 80px;
 }
-.mm-msg.success {
-  background: #dafbe1;
-  color: #1a7f37;
+.dsh-mm-input:focus {
+  border-color: var(--dsw-alias-brand-primary);
+  outline: none;
 }
-.mm-empty {
-  text-align: center;
-  padding: 16px 10px;
-  color: var(--dsw-alias-label-tertiary, #656d76);
+.dsh-mm-status-text {
   font-size: 12px;
+  color: var(--dsw-alias-state-success-primary);
 }
 
-/* 官方模型设置条目内直接注入的思考等级配置行 */
-.dsh-mm-inline-field {
+/* 官方模型设置条目直接嵌入样式 */
+.dsh-mm-inline-box {
   margin-top: 8px;
   padding: 8px 10px;
-  border-radius: 6px;
-  background: var(--dsw-alias-bg-layer-3, rgba(0,0,0,0.02));
-  border: 1px dashed var(--dsw-alias-border-l2, #d0d7de);
-  font-size: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-bg-layer-1);
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
-.dsh-mm-inline-head {
+.dsh-mm-inline-top {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-.dsh-mm-inline-tiers {
+.dsh-mm-inline-list {
   display: flex;
   gap: 10px;
   align-items: center;
   flex-wrap: wrap;
-}
-.mm-custom-input {
-  width: 70px;
-  padding: 2px 6px;
-  font-size: 11px;
-  border: 1px solid var(--dsw-alias-border-l2, #d0d7de);
-  border-radius: 4px;
-  background: var(--dsw-alias-bg-layer-2, #fff);
 }
 `;
 
@@ -264,7 +270,6 @@ function escapeHtml(value: string): string {
 
 export function apply(ctx: ClientContext): void {
   const connection = ctx.get('connection') as unknown as ConnectionHandle | undefined;
-  const logger = ctx.logger('dsh-model-memory-client');
 
   const style = document.createElement('style');
   style.textContent = cssText;
@@ -277,13 +282,13 @@ export function apply(ctx: ClientContext): void {
 
   const callRpc = async (endpoint: string, payload: unknown = {}): Promise<any> => {
     if (!connection?.rpc) {
-      throw new Error('RPC connection not available');
+      throw new Error('RPC not ready');
     }
     const res = (await connection.rpc.call('/model-memory', endpoint, payload)) as any;
     if (res && res.ok) {
       return res.value;
     }
-    throw new Error(res?.error?.message || 'RPC call failed');
+    throw new Error(res?.error?.message || 'RPC error');
   };
 
   const syncConfig = async (): Promise<CustomProviderInfo[]> => {
@@ -300,16 +305,14 @@ export function apply(ctx: ClientContext): void {
     }
   };
 
-  // 生成档位勾选 HTML
-  const buildTiersHtml = (supportedList: string[], modelId: string) => {
-    // 合并标准档位和已有的自定义档位
+  const buildTiersMarkup = (supportedList: string[], modelId: string, prefix = '') => {
     const allTiers = Array.from(new Set([...ALL_STANDARD_TIERS, ...supportedList]));
     const chks = allTiers
       .map((tier) => {
         const checked = supportedList.includes(tier) ? 'checked' : '';
         return `
-        <label class="mm-tier-chk">
-          <input type="checkbox" data-tier="${escapeHtml(tier)}" data-model="${escapeHtml(modelId)}" ${checked} />
+        <label class="dsh-mm-chk">
+          <input type="checkbox" data-${prefix}tier="${escapeHtml(tier)}" data-model="${escapeHtml(modelId)}" ${checked} />
           <span>${escapeHtml(tier)}</span>
         </label>
       `;
@@ -318,16 +321,16 @@ export function apply(ctx: ClientContext): void {
 
     return `
       ${chks}
-      <div style="display:inline-flex;align-items:center;gap:4px;margin-left:4px;">
-        <input type="text" class="mm-custom-input" placeholder="+ 自定义" data-custom-tier-input="${escapeHtml(modelId)}" />
-        <button class="mm-btn" type="button" data-add-custom-tier="${escapeHtml(modelId)}" style="padding:1px 6px;font-size:11px;">添加</button>
+      <div style="display:inline-flex;align-items:center;gap:4px;">
+        <input type="text" class="dsh-mm-input" placeholder="+ 自定义" data-${prefix}custom-input="${escapeHtml(modelId)}" />
+        <button class="dsh-mm-btn" type="button" data-${prefix}custom-add="${escapeHtml(modelId)}">添加</button>
       </div>
     `;
   };
 
-  // 1. 渲染插件设置页内的可折叠卡片
+  // 1. 插件设置页内的可折叠卡片
   const renderCardContent = async (container: HTMLElement) => {
-    const bodyEl = container.querySelector('.mm-card-body') as HTMLElement | null;
+    const bodyEl = container.querySelector('.dsh-mm-body') as HTMLElement | null;
     if (!bodyEl) return;
 
     if (!isCardOpen) {
@@ -336,34 +339,33 @@ export function apply(ctx: ClientContext): void {
       return;
     }
 
-    bodyEl.style.display = 'block';
+    bodyEl.style.display = 'flex';
     container.classList.add('open');
-    bodyEl.innerHTML = '<div class="mm-empty">正在读取思考等级配置...</div>';
+    bodyEl.innerHTML = '<div style="color:var(--dsw-alias-label-tertiary);font-size:12px;">加载中...</div>';
 
     await syncConfig();
 
-    const switchHtml = `
-      <div class="mm-global-switch">
+    const switchMarkup = `
+      <div class="dsh-mm-switch-row">
         <div>
-          <div class="mm-global-switch-title">🧠 跨会话偏好记忆</div>
-          <div class="mm-global-switch-desc">${memoryEnabled ? '已开启（新建会话或切换渠道时，自动记住并回填各渠道最后使用的模型与思考档位）' : '已暂停（不自动记忆跨会话思考档位）'}</div>
+          <div class="dsh-mm-switch-label">偏好记忆</div>
+          <div class="dsh-mm-switch-hint">${memoryEnabled ? '已开启跨会话模型与思考档位记忆' : '已暂停记忆'}</div>
         </div>
-        <label class="mm-tier-chk" style="font-weight:600;font-size:13px;">
-          <input type="checkbox" data-global-memory-switch ${memoryEnabled ? 'checked' : ''} />
-          <span>${memoryEnabled ? '已开启' : '已关闭'}</span>
+        <label class="dsh-mm-chk">
+          <input type="checkbox" data-memory-switch ${memoryEnabled ? 'checked' : ''} />
+          <span>${memoryEnabled ? '启用' : '关闭'}</span>
         </label>
       </div>
     `;
 
     if (cachedProviders.length === 0) {
       bodyEl.innerHTML = `
-        ${switchHtml}
-        <div class="mm-empty">
-          <p>暂无自定义 API 渠道。</p>
-          <p style="font-size:11px;color:#656d76;">请在官方模型设置中添加自定义 API 渠道与模型后在此管理思考等级。</p>
+        ${switchMarkup}
+        <div style="color:var(--dsw-alias-label-tertiary);font-size:12px;padding:4px 0;">
+          暂无自定义 API 渠道。请在模型设置中添加渠道与模型。
         </div>
       `;
-      bindSwitchEvents(bodyEl, container);
+      bindSwitch(bodyEl, container);
       return;
     }
 
@@ -374,41 +376,38 @@ export function apply(ctx: ClientContext): void {
     const currentProvider = cachedProviders[activeProviderIndex];
     if (!currentProvider) return;
 
-    const tabsHtml = cachedProviders
+    const tabsMarkup = cachedProviders
       .map(
         (p, idx) =>
-          `<button class="mm-tab ${idx === activeProviderIndex ? 'active' : ''}" type="button" data-tab-idx="${idx}">${escapeHtml(p.displayName || p.id)}</button>`,
+          `<button class="dsh-mm-tab ${idx === activeProviderIndex ? 'active' : ''}" type="button" data-tab-idx="${idx}">${escapeHtml(p.displayName || p.id)}</button>`,
       )
       .join('');
 
-    const modelsHtml =
+    const modelsMarkup =
       currentProvider.models.length === 0
-        ? '<div class="mm-empty">该渠道暂无模型。</div>'
+        ? '<div style="color:var(--dsw-alias-label-tertiary);font-size:12px;">该渠道暂无模型。</div>'
         : currentProvider.models
             .map((m) => {
               return `
-          <div class="mm-model-card" data-model-id="${escapeHtml(m.id)}">
-            <div class="mm-model-head">
-              <div class="mm-model-title">📦 ${escapeHtml(m.name || m.id)}</div>
-              <span class="mm-badge ${m.supportsReasoningEffort ? 'active' : 'inactive'}">
-                ${m.supportsReasoningEffort ? '✓ 思考等级已启用' : '○ 未启用'}
+          <div class="dsh-mm-model-row" data-model-id="${escapeHtml(m.id)}">
+            <div class="dsh-mm-model-head">
+              <span class="dsh-mm-model-id">${escapeHtml(m.id)}</span>
+              <span class="dsh-mm-badge ${m.supportsReasoningEffort ? 'active' : ''}">
+                ${m.supportsReasoningEffort ? '思考已启用' : '未启用'}
               </span>
             </div>
-            <div class="mm-field-row">
-              <label class="mm-tier-chk" style="font-weight:600;">
+            <div class="dsh-mm-controls">
+              <label class="dsh-mm-chk" style="font-weight:500;">
                 <input type="checkbox" data-enable-reasoning data-model="${escapeHtml(m.id)}" ${m.supportsReasoningEffort ? 'checked' : ''} />
-                <span>启用思考等级 (supportsReasoningEffort)</span>
+                <span>启用思考能力</span>
               </label>
             </div>
-            <div class="mm-field-row">
-              <span style="font-size:12px;color:var(--dsw-alias-label-secondary);min-width:60px;">档位:</span>
-              <div class="mm-tiers" data-tiers-container="${escapeHtml(m.id)}">
-                ${buildTiersHtml(m.supportedEffortList, m.id)}
-              </div>
+            <div class="dsh-mm-controls" data-tiers-container="${escapeHtml(m.id)}">
+              ${buildTiersMarkup(m.supportedEffortList, m.id, '')}
             </div>
-            <div style="margin-top:8px;display:flex;align-items:center;gap:10px;">
-              <button class="mm-btn primary" type="button" data-save-btn data-model="${escapeHtml(m.id)}">💾 保存</button>
-              <span class="mm-msg" data-msg="${escapeHtml(m.id)}" style="display:none;"></span>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:2px;">
+              <button class="dsh-mm-btn dsh-mm-btn-primary" type="button" data-save-btn data-model="${escapeHtml(m.id)}">保存</button>
+              <span class="dsh-mm-status-text" data-msg="${escapeHtml(m.id)}" style="display:none;"></span>
             </div>
           </div>
         `;
@@ -416,12 +415,12 @@ export function apply(ctx: ClientContext): void {
             .join('');
 
     bodyEl.innerHTML = `
-      ${switchHtml}
-      <div class="mm-tabs">${tabsHtml}</div>
-      <div class="mm-models-list">${modelsHtml}</div>
+      ${switchMarkup}
+      <div class="dsh-mm-tabs">${tabsMarkup}</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">${modelsMarkup}</div>
     `;
 
-    bindSwitchEvents(bodyEl, container);
+    bindSwitch(bodyEl, container);
 
     bodyEl.querySelectorAll('[data-tab-idx]').forEach((el) => {
       el.addEventListener('click', (e) => {
@@ -430,25 +429,23 @@ export function apply(ctx: ClientContext): void {
       });
     });
 
-    // 添加自定义档位
-    bodyEl.querySelectorAll('[data-add-custom-tier]').forEach((btn) => {
+    bodyEl.querySelectorAll('[data-custom-add]').forEach((btn) => {
       btn.addEventListener('click', () => {
-        const modelId = (btn as HTMLElement).dataset.addCustomTier || '';
-        const input = bodyEl.querySelector(`input[data-custom-tier-input="${CSS.escape(modelId)}"]`) as HTMLInputElement | null;
+        const modelId = (btn as HTMLElement).dataset.customAdd || '';
+        const input = bodyEl.querySelector(`input[data-custom-input="${CSS.escape(modelId)}"]`) as HTMLInputElement | null;
         const tierName = input?.value.trim();
         if (!tierName) return;
 
         const tiersContainer = bodyEl.querySelector(`[data-tiers-container="${CSS.escape(modelId)}"]`);
         if (!tiersContainer) return;
 
-        // 检查是否已有
         if (tiersContainer.querySelector(`input[data-tier="${CSS.escape(tierName)}"]`)) {
           input!.value = '';
           return;
         }
 
         const newLabel = document.createElement('label');
-        newLabel.className = 'mm-tier-chk';
+        newLabel.className = 'dsh-mm-chk';
         newLabel.innerHTML = `<input type="checkbox" data-tier="${escapeHtml(tierName)}" data-model="${escapeHtml(modelId)}" checked /><span>${escapeHtml(tierName)}</span>`;
         tiersContainer.insertBefore(newLabel, btn.parentElement);
         input!.value = '';
@@ -458,12 +455,12 @@ export function apply(ctx: ClientContext): void {
     bodyEl.querySelectorAll('[data-save-btn]').forEach((btn) => {
       btn.addEventListener('click', async (e) => {
         const modelId = (e.currentTarget as HTMLElement).dataset.model || '';
-        const card = bodyEl.querySelector(`.mm-model-card[data-model-id="${CSS.escape(modelId)}"]`);
-        if (!card) return;
+        const row = bodyEl.querySelector(`.dsh-mm-model-row[data-model-id="${CSS.escape(modelId)}"]`);
+        if (!row) return;
 
-        const enableChk = card.querySelector('[data-enable-reasoning]') as HTMLInputElement | null;
-        const tierInputs = card.querySelectorAll('input[data-tier]:checked');
-        const msgEl = card.querySelector(`[data-msg="${CSS.escape(modelId)}"]`) as HTMLElement | null;
+        const enableChk = row.querySelector('[data-enable-reasoning]') as HTMLInputElement | null;
+        const tierInputs = row.querySelectorAll('input[data-tier]:checked');
+        const msgEl = row.querySelector(`[data-msg="${CSS.escape(modelId)}"]`) as HTMLElement | null;
 
         const supportsReasoningEffort = Boolean(enableChk?.checked);
         const selectedTiers: string[] = [];
@@ -490,19 +487,17 @@ export function apply(ctx: ClientContext): void {
           });
 
           if (msgEl) {
-            msgEl.textContent = '✅ 已保存生效！';
-            msgEl.className = 'mm-msg success';
-            msgEl.style.display = 'inline-block';
+            msgEl.textContent = '已保存';
+            msgEl.style.display = 'inline';
             setTimeout(() => {
               if (msgEl) msgEl.style.display = 'none';
-            }, 2500);
+            }, 2000);
           }
           await renderCardContent(container);
         } catch (err: any) {
           if (msgEl) {
-            msgEl.textContent = '❌ 保存失败: ' + err.message;
-            msgEl.className = 'mm-msg';
-            msgEl.style.display = 'inline-block';
+            msgEl.textContent = '保存失败: ' + err.message;
+            msgEl.style.display = 'inline';
           }
         } finally {
           if (btn instanceof HTMLButtonElement) btn.disabled = false;
@@ -511,17 +506,15 @@ export function apply(ctx: ClientContext): void {
     });
   };
 
-  const bindSwitchEvents = (bodyEl: HTMLElement, container: HTMLElement) => {
-    const memorySwitch = bodyEl.querySelector('[data-global-memory-switch]') as HTMLInputElement | null;
+  const bindSwitch = (bodyEl: HTMLElement, container: HTMLElement) => {
+    const memorySwitch = bodyEl.querySelector('[data-memory-switch]') as HTMLInputElement | null;
     memorySwitch?.addEventListener('change', async () => {
       const nextVal = Boolean(memorySwitch.checked);
       try {
         await callRpc('toggle-memory', { enabled: nextVal });
         memoryEnabled = nextVal;
         void renderCardContent(container);
-      } catch (err: any) {
-        logger.error('Toggle memory failed: ' + String(err));
-      }
+      } catch {}
     });
   };
 
@@ -536,17 +529,17 @@ export function apply(ctx: ClientContext): void {
     const li = document.createElement('li');
     li.dataset.dshModelMemoryCard = '';
     li.innerHTML = `
-      <button class="mm-card-header" type="button" aria-expanded="false">
-        <span class="mm-card-head-text">
-          <span class="mm-card-title">🧠 自定义模型思考等级管理</span>
-          <span class="mm-card-desc">配置自定义 API 渠道模型的思考档位（none / minimal / low / medium / high / xhigh / max），跨会话持久记忆。</span>
+      <button class="dsh-mm-header" type="button" aria-expanded="false">
+        <span class="dsh-mm-head-text">
+          <span class="dsh-mm-title">模型思考等级与偏好记忆</span>
+          <span class="dsh-mm-desc">配置自定义模型思考档位与跨会话记忆</span>
         </span>
-        <span class="mm-card-chevron">▾</span>
+        <span class="dsh-mm-chevron">▾</span>
       </button>
-      <div class="mm-card-body" style="display:none;"></div>
+      <div class="dsh-mm-body" style="display:none;"></div>
     `;
 
-    const headerBtn = li.querySelector('.mm-card-header');
+    const headerBtn = li.querySelector('.dsh-mm-header');
     headerBtn?.addEventListener('click', () => {
       isCardOpen = !isCardOpen;
       headerBtn.setAttribute('aria-expanded', String(isCardOpen));
@@ -556,7 +549,7 @@ export function apply(ctx: ClientContext): void {
     pluginList.prepend(li);
   };
 
-  // 2. 深度嵌入官方“模型设置”条目中（每个自定义模型卡片下方挂载全档位思考等级栏）
+  // 2. 深度内嵌到官方「模型设置」条目中
   const injectInlineModelReasoning = async () => {
     const modelEntries = document.querySelectorAll('[class*="modelEntry"], [class*="modelAdvanced"], [class*="rowCard"]');
     if (modelEntries.length === 0) return;
@@ -568,7 +561,6 @@ export function apply(ctx: ClientContext): void {
     modelEntries.forEach((entry) => {
       if (entry.hasAttribute(INLINE_INJECT_ATTR)) return;
 
-      // 提取该条目的模型 ID
       const inputs = entry.querySelectorAll('input[type="text"], input:not([type])');
       let matchedModel: CustomModelReasoningConfig | undefined;
       let matchedProvider: CustomProviderInfo | undefined;
@@ -591,14 +583,14 @@ export function apply(ctx: ClientContext): void {
       entry.setAttribute(INLINE_INJECT_ATTR, 'true');
 
       const inlineBox = document.createElement('div');
-      inlineBox.className = 'dsh-mm-inline-field';
+      inlineBox.className = 'dsh-mm-inline-box';
 
       const allTiers = Array.from(new Set([...ALL_STANDARD_TIERS, ...matchedModel.supportedEffortList]));
       const chks = allTiers
         .map(
           (t) => `
-        <label class="mm-tier-chk">
-          <input type="checkbox" data-mm-inline-tier="${escapeHtml(t)}" ${matchedModel?.supportedEffortList.includes(t) ? 'checked' : ''} />
+        <label class="dsh-mm-chk">
+          <input type="checkbox" data-inline-tier="${escapeHtml(t)}" ${matchedModel?.supportedEffortList.includes(t) ? 'checked' : ''} />
           <span>${escapeHtml(t)}</span>
         </label>
       `,
@@ -606,47 +598,46 @@ export function apply(ctx: ClientContext): void {
         .join('');
 
       inlineBox.innerHTML = `
-        <div class="dsh-mm-inline-head">
-          <label class="mm-tier-chk" style="font-weight:600;">
-            <input type="checkbox" data-mm-inline-enable ${matchedModel.supportsReasoningEffort ? 'checked' : ''} />
-            <span>🧠 启用思考等级</span>
+        <div class="dsh-mm-inline-top">
+          <label class="dsh-mm-chk" style="font-weight:500;">
+            <input type="checkbox" data-inline-enable ${matchedModel.supportsReasoningEffort ? 'checked' : ''} />
+            <span>思考等级</span>
           </label>
-          <button class="mm-btn primary" type="button" data-mm-inline-save style="padding:2px 8px;font-size:11px;">保存思考档位</button>
+          <button class="dsh-mm-btn dsh-mm-btn-primary" type="button" data-inline-save>保存</button>
         </div>
-        <div class="dsh-mm-inline-tiers" data-inline-tiers-container>
+        <div class="dsh-mm-inline-list" data-inline-container>
           ${chks}
           <div style="display:inline-flex;align-items:center;gap:4px;">
-            <input type="text" class="mm-custom-input" placeholder="+ 自定义" data-inline-custom-input />
-            <button class="mm-btn" type="button" data-inline-add-custom style="padding:1px 6px;font-size:11px;">添加</button>
+            <input type="text" class="dsh-mm-input" placeholder="+ 自定义" data-inline-input />
+            <button class="dsh-mm-btn" type="button" data-inline-add>添加</button>
           </div>
         </div>
       `;
 
-      // 绑定内嵌自定义档位添加
-      const addCustomBtn = inlineBox.querySelector('[data-inline-add-custom]');
-      const customInput = inlineBox.querySelector('[data-inline-custom-input]') as HTMLInputElement | null;
-      addCustomBtn?.addEventListener('click', () => {
+      const addBtn = inlineBox.querySelector('[data-inline-add]');
+      const customInput = inlineBox.querySelector('[data-inline-input]') as HTMLInputElement | null;
+      addBtn?.addEventListener('click', () => {
         const val = customInput?.value.trim();
         if (!val) return;
-        const container = inlineBox.querySelector('[data-inline-tiers-container]');
-        if (!container || container.querySelector(`input[data-mm-inline-tier="${CSS.escape(val)}"]`)) {
+        const container = inlineBox.querySelector('[data-inline-container]');
+        if (!container || container.querySelector(`input[data-inline-tier="${CSS.escape(val)}"]`)) {
           if (customInput) customInput.value = '';
           return;
         }
         const lbl = document.createElement('label');
-        lbl.className = 'mm-tier-chk';
-        lbl.innerHTML = `<input type="checkbox" data-mm-inline-tier="${escapeHtml(val)}" checked /><span>${escapeHtml(val)}</span>`;
-        container.insertBefore(lbl, addCustomBtn.parentElement);
+        lbl.className = 'dsh-mm-chk';
+        lbl.innerHTML = `<input type="checkbox" data-inline-tier="${escapeHtml(val)}" checked /><span>${escapeHtml(val)}</span>`;
+        container.insertBefore(lbl, addBtn.parentElement);
         if (customInput) customInput.value = '';
       });
 
-      const saveBtn = inlineBox.querySelector('[data-mm-inline-save]');
+      const saveBtn = inlineBox.querySelector('[data-inline-save]');
       saveBtn?.addEventListener('click', async () => {
         if (!matchedModel || !matchedProvider) return;
-        const enable = (inlineBox.querySelector('[data-mm-inline-enable]') as HTMLInputElement | null)?.checked;
+        const enable = (inlineBox.querySelector('[data-inline-enable]') as HTMLInputElement | null)?.checked;
         const checkedTiers: string[] = [];
-        inlineBox.querySelectorAll('input[data-mm-inline-tier]:checked').forEach((i) => {
-          const t = (i as HTMLElement).dataset.mmInlineTier;
+        inlineBox.querySelectorAll('input[data-inline-tier]:checked').forEach((i) => {
+          const t = (i as HTMLElement).dataset.inlineTier;
           if (t) checkedTiers.push(t);
         });
 
@@ -664,16 +655,16 @@ export function apply(ctx: ClientContext): void {
             reasoningEfforts: checkedTiers,
           });
           if (saveBtn instanceof HTMLButtonElement) {
-            saveBtn.textContent = '✅ 已保存';
+            saveBtn.textContent = '已保存';
             setTimeout(() => {
-              saveBtn.textContent = '保存思考档位';
+              saveBtn.textContent = '保存';
               saveBtn.disabled = false;
-            }, 2000);
+            }, 1800);
           }
           await syncConfig();
         } catch {
           if (saveBtn instanceof HTMLButtonElement) {
-            saveBtn.textContent = '❌ 失败';
+            saveBtn.textContent = '失败';
             saveBtn.disabled = false;
           }
         }
@@ -684,8 +675,6 @@ export function apply(ctx: ClientContext): void {
   };
 
   ctx.effect(() => {
-    logger.info('dsh-model-memory 思考等级配置就绪');
-
     const observer = new MutationObserver(() => {
       mountSettingsPluginCard();
       void injectInlineModelReasoning();
@@ -698,7 +687,7 @@ export function apply(ctx: ClientContext): void {
     return () => {
       observer.disconnect();
       document.querySelectorAll(SETTINGS_CARD_SELECTOR).forEach((el) => el.remove());
-      document.querySelectorAll('.dsh-mm-inline-field').forEach((el) => el.remove());
+      document.querySelectorAll('.dsh-mm-inline-box').forEach((el) => el.remove());
     };
   }, 'dsh-model-memory: settings lifecycle');
 }

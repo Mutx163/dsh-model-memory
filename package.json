@@ -1,7 +1,7 @@
 {
   "name": "dsh-model-memory",
-  "version": "0.1.1",
-  "description": "DSH 自定义模型思考等级管理与偏好记忆插件：为自定义 API 渠道一键启用并配置思考档位（none/minimal/low/medium/high/xhigh/max+自定义），跨会话精准记忆各渠道模型偏好，带独立记忆开关。",
+  "version": "0.1.2",
+  "description": "DSH 自定义模型思考等级管理与偏好记忆插件：原生设计语言、全档位思考配置与跨会话偏好记忆。",
   "author": "Mutx163",
   "license": "MIT",
   "homepage": "https://github.com/Mutx163/dsh-model-memory#readme",
