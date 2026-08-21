@@ -136,6 +136,20 @@ export class ModelMemoryService {
   }
 
   /**
+   * 运行时更新配置（settings 命名空间变更时由宿主回调）
+   */
+  updateConfig(patch: Partial<ModelMemoryConfig>): void {
+    if (patch.enabled !== undefined) this.config.enabled = patch.enabled;
+    if (patch.syncDefaultModel !== undefined) this.config.syncDefaultModel = patch.syncDefaultModel;
+    if (patch.defaultFallbackEffort !== undefined) this.config.defaultFallbackEffort = patch.defaultFallbackEffort;
+  }
+
+  /** 只读配置视图 */
+  getConfig(): Readonly<Required<ModelMemoryConfig>> {
+    return this.config;
+  }
+
+  /**
    * 重置记忆
    */
   async reset(provider?: string): Promise<void> {
